@@ -1,0 +1,267 @@
+/dts-v1/;
+
+#include <st/f7/stm32f767Xi.dtsi>
+#include <st/f7/stm32f767zitx-pinctrl.dtsi>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+    model = "Drexel Racing DER26 ECU";
+    compatible = "st,stm32f767";
+
+    chosen {
+        zephyr,console = &usart3;
+        zephyr,shell-uart = &usart3;
+        zephyr,sram = &sram0;
+        zephyr,flash = &flash0;
+        zephyr,dtcm = &dtcm;
+    };
+};
+
+
+/*
+ * DER26 uses an actual 8 MHz HSE crystal.
+ * Do NOT set hse-bypass.
+ */
+&clk_hse {
+    clock-frequency = <DT_FREQ_M(8)>;
+    status = "okay";
+};
+
+
+/*
+ * LSE drives the RTC. v2.10.7 SystemClock_Config() enables LSE; the RTC
+ * supplies the timestamp used for SD log filenames and log records.
+ * The AMS board does not need this; the ECU does.
+ */
+&clk_lse {
+    status = "okay";
+};
+
+
+/*
+ * STM32F767 clock tree, from v2.10.7 SystemClock_Config():
+ *
+ *   8 MHz / 4   = 2 MHz
+ *   2 MHz * 216 = 432 MHz VCO
+ *   432 MHz / 2 = 216 MHz SYSCLK
+ *
+ * Identical to the DER26 AMS board.
+ */
+&pll {
+    div-m = <4>;
+    mul-n = <216>;
+    div-p = <2>;
+    div-q = <2>;
+    clocks = <&clk_hse>;
+    status = "okay";
+};
+
+
+&rcc {
+    clocks = <&pll>;
+    clock-frequency = <DT_FREQ_M(216)>;
+
+    ahb-prescaler = <1>;
+    apb1-prescaler = <4>;
+    apb2-prescaler = <2>;
+};
+
+
+/*
+ * Service CLI UART.
+ *
+ * This is the only application peripheral enabled at E-002. E-017 replaces the
+ * v2.10.7 cli_task.c command set with the Zephyr shell on this same port.
+ *
+ * v2.10.7 CubeMX sets USART3_IRQn preemption priority 15 under
+ * NVIC_PRIORITYGROUP_4. Pin it rather than inheriting the SoC DTS default.
+ */
+&usart3 {
+    pinctrl-0 = <&usart3_tx_pd8 &usart3_rx_pd9>;
+    pinctrl-names = "default";
+    current-speed = <115200>;
+    interrupts = <39 15>;
+    status = "okay";
+};
+
+
+/*
+ * ---------------------------------------------------------------------------
+ * Hardware contracts recorded at E-002, enabled at their own stages.
+ * ---------------------------------------------------------------------------
+ *
+ * Every node below carries its frozen DER26 pinctrl and, where v2.10.7 sets a
+ * non-default NVIC priority, that priority. Recording them now keeps the pin
+ * contract in one reviewable place; each stage flips its own status to "okay"
+ * together with the adapter and contract checker that owns it.
+ *
+ * Source: docs/PIN_MAP.md and DER26-ECU.ioc at v2.10.7.
+ */
+
+
+/*
+ * Dashboard UART. Enabled at E-014.
+ * v2.10.7 UART7_IRQn preemption priority 5.
+ */
+&uart7 {
+    pinctrl-0 = <&uart7_tx_pf7 &uart7_rx_pf6>;
+    pinctrl-names = "default";
+    current-speed = <115200>;
+    interrupts = <82 5>;
+    status = "disabled";
+};
+
+
+/*
+ * CAN1 / bxCAN. Enabled read-only at E-011, transmit at E-012/E-013.
+ *
+ * v2.10.7 sets CAN1_TX, CAN1_RX0 and CAN1_SCE all to preemption priority 5.
+ * The SCE path is required: v2.10.7 added it so bus-off and error notification
+ * do not depend on unrelated RX traffic. SoC IRQs are TX=19, RX0=20, RX1=21,
+ * SCE=22; RX1 is unused by DER26 but is pinned to the same priority.
+ *
+ * Bit timing is NOT expressed here. Seam 4.1 of the E-000 plan requires the
+ * 500 kbps (prescaler 6) and 250 kbps (prescaler 12) contract to be
+ * re-derived through can_set_timing() and asserted equal, not transcribed.
+ */
+&can1 {
+    pinctrl-0 = <&can1_rx_pd0 &can1_tx_pd1>;
+    pinctrl-names = "default";
+    interrupts = <19 5>, <20 5>, <21 5>, <22 5>;
+    status = "disabled";
+};
+
+
+/*
+ * Coolant flow capture, PA0. Enabled at E-010.
+ *
+ * v2.10.7 uses TIM5 CH1/CH2 in the two-channel capture topology that the AMS
+ * Z-013 IMD adapter already ports: CH1 direct capture for the period, CH2
+ * indirect for high time, hardware slave reset on TI1FP1.
+ * TIM5_IRQn preemption priority 5.
+ */
+&timers5 {
+    st,prescaler = <0>;
+    interrupts = <50 5>;
+    status = "disabled";
+
+    pwm5: pwm {
+        pinctrl-0 = <&tim5_ch1_pa0>;
+        pinctrl-names = "default";
+        status = "disabled";
+    };
+};
+
+
+/*
+ * SSA indicator PWM, PB1 = TIM3_CH4. Enabled at E-009.
+ */
+&timers3 {
+    st,prescaler = <0>;
+    status = "disabled";
+
+    pwm3: pwm {
+        pinctrl-0 = <&tim3_ch4_pb1>;
+        pinctrl-names = "default";
+        status = "disabled";
+    };
+};
+
+
+/*
+ * Coolant pump PWM, PB8 = TIM4_CH3. Enabled at E-009.
+ *
+ * PB8 drives an inverting low-side switch on the pump's S input. Gate-low
+ * releases S and deliberately invokes the pump's no-valid-PWM full-speed
+ * fallback. That inversion is a safety property of the DER26 hardware and must
+ * be preserved by the adapter, not "corrected".
+ */
+&timers4 {
+    st,prescaler = <0>;
+    status = "disabled";
+
+    pwm4: pwm {
+        pinctrl-0 = <&tim4_ch3_pb8>;
+        pinctrl-names = "default";
+        status = "disabled";
+    };
+};
+
+
+/*
+ * Current/analog sensing. Ownership is an OPEN DECISION (E-000 seam 4.2).
+ *
+ * ADC1_IN3  PA3 APPS1
+ * ADC2_IN10 PC0 APPS2
+ * ADC3_IN13 PC3 BSE1
+ * ADC3_IN9  PF3 BSE2
+ * ADC3_IN7  PF9 coolant pressure
+ * ADC3_IN15 PF5 coolant temperature 1
+ * ADC3_IN14 PF4 coolant temperature 2
+ *
+ * All three instances stay disabled until E008_ADC_OWNERSHIP_AUDIT.md decides
+ * between the generic Zephyr subsystem and a private bounded polling backend.
+ * Note STM32F767 has ONE common reset bit for ADC1/2/3, so recovery policy is
+ * a bank-level property; the AMS avoided this by keeping ADC3 disabled, which
+ * the ECU cannot do.
+ */
+&adc1 {
+    status = "disabled";
+};
+
+&adc2 {
+    status = "disabled";
+};
+
+&adc3 {
+    status = "disabled";
+};
+
+
+/*
+ * SD card over SPI6. Enabled at E-016.
+ *
+ * MISO PG12, SCK PG13, MOSI PG14, CS PG8 driven as a plain GPIO.
+ * This is the non-safety logging path, so the generic spi_stm32 driver is
+ * acceptable here - unlike the AMS, where SPI6 carries the ADBMS chain and
+ * required the audited private backend.
+ */
+&spi6 {
+    pinctrl-0 = <&spi6_miso_pg12 &spi6_sck_pg13 &spi6_mosi_pg14>;
+    pinctrl-names = "default";
+    cs-gpios = <&gpiog 8 GPIO_ACTIVE_LOW>;
+    status = "disabled";
+};
+
+
+/*
+ * MPU6050 IMU on I2C2, PF0 SDA / PF1 SCL. Enabled at E-014.
+ * Non-safety: the in-tree Zephyr sensor driver replaces the custom one.
+ */
+&i2c2 {
+    pinctrl-0 = <&i2c2_sda_pf0 &i2c2_scl_pf1>;
+    pinctrl-names = "default";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+    status = "disabled";
+};
+
+
+/*
+ * RTC, clocked from LSE. Enabled at E-016 for log timestamps.
+ */
+&rtc {
+    status = "disabled";
+};
+
+
+/*
+ * Independent watchdog. Enabled at E-015.
+ *
+ * v2.10.7 arms IWDG only in the vehicle profile, at prescaler /64 reload 999
+ * (approximately 2 s at the nominal 32 kHz LSI). Merely enabling the device
+ * does not start IWDG in Zephyr; the adapter ported from the AMS crosses the
+ * irreversible wdt_setup() boundary only in the explicit validation build.
+ */
+&iwdg {
+    status = "disabled";
+};

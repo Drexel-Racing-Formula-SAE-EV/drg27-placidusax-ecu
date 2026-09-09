@@ -1,0 +1,13 @@
+name: portable-core-null-platform
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ecu-core-null-platform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove ecu_core builds without Zephyr RTOS, FreeRTOS or HAL
+        run: python3 scripts/check_null_platform_core.py .

@@ -1,0 +1,10 @@
+name: drg27-placidusax-ecu
+
+build:
+  # Keep ordinary ECU platform drivers in a real Zephyr module so their
+  # zephyr_library_named() targets are created in kernel CMake mode.
+  cmake: zephyr
+
+  settings:
+    board_root: .
+    dts_root: .

@@ -1,0 +1,170 @@
+mainmenu "DRG27 Placidusax ECU"
+
+source "Kconfig.zephyr"
+
+menu "DRG27 ECU migration authority policy"
+
+# ---------------------------------------------------------------------------
+# Authority locks
+# ---------------------------------------------------------------------------
+#
+# These correspond to ECU_OUTPUTS_INHIBITED in the v2.10.7 oracle's
+# ecu_config.h.  The oracle inhibits propulsion outputs in every profile except
+# ECU_BUILD_PROFILE_VEHICLE.  During the migration all three remain disabled;
+# each is additionally backstopped by a C BUILD_ASSERT at the stage that
+# introduces the corresponding output writer.
+
+config ECU_TORQUE_AUTHORITY
+    bool "Permit nonzero torque request authority"
+    default n
+    help
+      Controls whether the application may command a nonzero CM200 torque
+      request. MUST remain disabled for the whole migration until E-018.
+
+config ECU_INVERTER_ENABLE_AUTHORITY
+    bool "Permit CM200 hardware enable authority (MTR_EN / Cascadia_ON)"
+    default n
+    help
+      Controls whether the application may assert the two CM200 hardware
+      enable outputs. MUST remain disabled for the whole migration until E-018.
+
+config ECU_FIRMWARE_OK_AUTHORITY
+    bool "Permit Firmware_Ok shutdown-circuit authority"
+    default n
+    help
+      Controls whether the application may drive Firmware_Ok high. This is a
+      shutdown-circuit participant; it remains disabled until the safety
+      supervisor and watchdog stages are validated.
+
+endmenu
+
+menu "DRG27 ECU release evidence gates"
+
+# ---------------------------------------------------------------------------
+# One-for-one translation of the v2.10.7 ecu_config.h evidence gates.
+# ---------------------------------------------------------------------------
+#
+# Each corresponds to an independently reviewable artifact and may NOT be
+# replaced by one generic release switch. Enabling all of them is necessary but
+# not sufficient for vehicle authority; the authority locks above are separate.
+
+config ECU_PINMAP_VALIDATED
+    bool "Claim validated pin map"
+    default n
+
+config ECU_APPS_CALIBRATION_VALIDATED
+    bool "Claim validated APPS calibration"
+    default n
+
+config ECU_BSE_CALIBRATION_VALIDATED
+    bool "Claim validated brake calibration"
+    default n
+
+config ECU_DISCRETE_INPUTS_VALIDATED
+    bool "Claim validated protected discrete inputs"
+    default n
+
+config ECU_AMS_PROTOCOL_VALIDATED
+    bool "Claim validated AMS CAN protocol behavior"
+    default n
+
+config ECU_CURRENT_MODEL_VALIDATED
+    bool "Claim validated pack-current model"
+    default n
+
+config ECU_CURRENT_RESIDUAL_VALIDATED
+    bool "Claim validated current-residual monitor"
+    default n
+
+config ECU_COOLING_VALIDATED
+    bool "Claim validated cooling loop"
+    default n
+
+config ECU_RTOS_MEMORY_VALIDATED
+    bool "Claim validated RTOS memory/stack budgets"
+    default n
+
+config ECU_WCET_VALIDATED
+    bool "Claim validated worst-case execution timing"
+    default n
+
+config ECU_CAN_LOAD_VALIDATED
+    bool "Claim validated whole-vehicle CAN load"
+    default n
+
+config ECU_WATCHDOG_VALIDATED
+    bool "Claim validated watchdog behavior"
+    default n
+
+config ECU_SAFE_OUTPUTS_VALIDATED
+    bool "Claim validated safe-output behavior"
+    default n
+
+config ECU_CM200_CAN_CONTRACT_VALIDATED
+    bool "Claim measured CM200 broadcast IDs/rates/mode/counter settings"
+    default n
+
+endmenu
+
+menu "DRG27 ECU migration capabilities"
+
+# Hidden migration facts. Deliberately not user-selectable: code presence,
+# actor liveness, safety evidence and physical validation are four different
+# states and must never be inferred from one another.
+
+config ECU_CAP_FAIL_LOW_ADAPTER_PRESENT
+    bool
+    default n
+
+config ECU_CAP_SAFETY_IO_ADAPTER_PRESENT
+    bool
+    default n
+
+config ECU_CAP_DISCRETE_IN_ADAPTER_PRESENT
+    bool
+    default n
+
+config ECU_CAP_ANALOG_ADAPTER_PRESENT
+    bool
+    default n
+
+config ECU_CAP_ANALOG_ACTOR_LIVE
+    bool
+    default n
+
+config ECU_CAP_ANALOG_SAFETY_EVIDENCE
+    bool
+    default n
+
+config ECU_CAP_CAN_ADAPTER_PRESENT
+    bool
+    default n
+
+config ECU_CAP_CAN_RX_ACTOR_LIVE
+    bool
+    default n
+
+config ECU_CAP_CAN_TX_ACTOR_LIVE
+    bool
+    default n
+
+config ECU_CAP_CAN_ONWIRE_COMMIT_PROVEN
+    bool
+    default n
+    help
+      Set only when the E-013 audit has demonstrated that the transmit path
+      credits a CM200 frame exclusively on confirmed on-wire completion.
+
+config ECU_CAP_WATCHDOG_ADAPTER_PRESENT
+    bool
+    default n
+
+config ECU_CAP_WATCHDOG_ACTIVE
+    bool
+    default n
+
+config ECU_CAP_LOGGER_ADAPTER_PRESENT
+    bool
+    default n
+
+endmenu
