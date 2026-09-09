@@ -9,6 +9,7 @@ project(drg27_placidusax_ecu)
 
 target_sources(app PRIVATE
     src/main.c
+    src/ecu_fatal.c
 )
 
 target_include_directories(app PRIVATE
@@ -41,6 +42,14 @@ if(NOT TARGET ecu_platform)
     message(FATAL_ERROR
         "ecu_platform Zephyr module library was not created; "
         "check zephyr/module.yml and zephyr/CMakeLists.txt")
+endif()
+
+# The DER26 board CMakeLists is discovered and processed by Zephyr as part of
+# board handling. Never add the board directory manually from the app: doing so
+# instantiates ecu_board_safety twice and violates board-source ownership.
+if(NOT TARGET ecu_board_safety)
+    message(FATAL_ERROR
+        "ecu_board_safety was not created by the DER26 ECU board CMake integration")
 endif()
 
 # Platform adapters may consume portable ECU types/functions.  The portable

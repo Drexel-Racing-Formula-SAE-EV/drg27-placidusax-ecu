@@ -4,6 +4,8 @@
 
 #include <ecu_core/ecu_core_contract.h>
 
+#include "ecu_fatal.h"
+
 /*
  * Authority backstop.
  *
@@ -22,7 +24,7 @@ int main(void)
 {
     int ret;
 
-    printk("\nDRG27 Placidusax ECU - Zephyr migration stage E-002\n");
+    printk("\nDRG27 Placidusax ECU - Zephyr migration stage E-003\n");
     printk("Oracle: %s\n", ECU_CORE_ORACLE_REVISION);
     printk("Board:  %s\n", CONFIG_BOARD_TARGET);
 
@@ -46,7 +48,18 @@ int main(void)
     printk("Torque authority:          DISABLED\n");
     printk("Inverter enable authority: DISABLED\n");
     printk("Firmware_Ok authority:     DISABLED\n");
-    printk("Safe outputs: not yet owned by this image (E-003)\n");
+    if (!ecu_safe_outputs_confirmed()) {
+        /*
+         * The PRE_KERNEL_1 board primitive did not run, so the outputs were
+         * never proven safe. Treat that as fatal rather than continuing with
+         * an unknown physical state.
+         */
+        printk("ECU safe outputs NOT confirmed\n");
+        k_panic();
+    }
+
+    printk("Safe outputs: FORCED LOW (PA7 PA5 PF10 PF13 PB8)\n");
+    printk("Coolant pump: gate released -> full-speed fallback\n");
 
     for (;;) {
         k_sleep(K_FOREVER);

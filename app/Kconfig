@@ -114,7 +114,18 @@ menu "DRG27 ECU migration capabilities"
 
 config ECU_CAP_FAIL_LOW_ADAPTER_PRESENT
     bool
+    default y
+    help
+      E-003: the board-owned direct-register safe-output primitive exists and
+      is registered at PRE_KERNEL_1. This states only that the adapter is
+      present; it does NOT claim physical validation on the target.
+
+config ECU_CAP_FAIL_LOW_PHYSICALLY_VALIDATED
+    bool
     default n
+    help
+      Set only after scope verification on the installed ECU: all five outputs
+      low before kernel init, and again after a forced fatal error.
 
 config ECU_CAP_SAFETY_IO_ADAPTER_PRESENT
     bool

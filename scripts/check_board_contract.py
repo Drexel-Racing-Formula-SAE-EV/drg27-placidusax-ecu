@@ -182,6 +182,37 @@ def main():
         check(n is not None and n.status == "disabled",
               f"{label} must remain disabled until {stage}")
 
+    # -- E-003 safety outputs -----------------------------------------------
+    # These five pins are the vehicle's physical safety surface. Their
+    # controller, pin number and active level are all frozen.
+    safety = node(edt, "ecu_safety_io")
+    if safety is None:
+        check(False, "missing ecu_safety_io node")
+    else:
+        check(safety.status == "okay", "ecu_safety_io must be enabled")
+        expected = {
+            "firmware-ok-gpios": ("gpioa", 7),
+            "cascadia-on-gpios": ("gpioa", 5),
+            "inverter-enable-gpios": ("gpiof", 10),
+            "buzzer-gpios": ("gpiof", 13),
+            "pump-gate-gpios": ("gpiob", 8),
+        }
+        for prop, (want_ctlr, want_pin) in expected.items():
+            if prop not in safety.props:
+                check(False, f"ecu_safety_io missing {prop}")
+                continue
+            entry = safety.props[prop].val[0]
+            got_ctlr = entry.controller.labels[0]
+            got_pin = entry.data["pin"]
+            check(got_ctlr == want_ctlr and got_pin == want_pin,
+                  f"{prop} must remain {want_ctlr} pin {want_pin}, "
+                  f"got {got_ctlr} pin {got_pin}")
+            # flags 0 == GPIO_ACTIVE_HIGH. The pump gate's inversion is
+            # downstream of the pin and must NOT be encoded here: doing so
+            # would invert the safe level.
+            check(entry.data["flags"] == 0,
+                  f"{prop} must remain active-high at the pin")
+
     # -- Pump inversion note is load-bearing --------------------------------
     t4 = node(edt, "timers4")
     check(t4 is not None and pinctrl_names(t4.children["pwm"]) == ["tim4_ch3_pb8"],

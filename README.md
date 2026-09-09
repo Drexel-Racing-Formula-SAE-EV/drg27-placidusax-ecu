@@ -2,17 +2,18 @@
 
 Zephyr RTOS port of the Drexel Electric Racing DER26 vehicle ECU firmware.
 
-**Status: E-002.** Workspace and board definition only. This image has no safe
-outputs, no authority, and has never been built for the target or flashed.
-Do not connect it to a vehicle.
+**Status: E-003.** Workspace, board definition, and the fail-low safe-output
+foundation. This image has no authority and has never been built for the target
+or flashed. Do not connect it to a vehicle.
 
 Oracle: `DER26-ECU-v2.10.7-SAFETY2-20260827` (STM32F767ZI + CubeMX + FreeRTOS).
 Zephyr replaces platform mechanisms; it does not redefine ECU safety behavior.
 
 - [Migration plan](docs/migration/E000_MIGRATION_PLAN.md) — staging E-000..E-018,
   portability triage, and the ranked hard seams.
-- [E-001/E-002 closeout](docs/migration/E002_CLOSEOUT.md) — what landed, the
-  evidence behind it, and what is explicitly not claimed.
+- [E-001/E-002 closeout](docs/migration/E002_CLOSEOUT.md) — workspace and board.
+- [E-003 closeout](docs/migration/E003_CLOSEOUT.md) — the safe-output primitive,
+  its one deliberate deviation from the oracle, and 14/14 mutation results.
 
 ## Architecture invariant
 
@@ -29,10 +30,10 @@ Portability, needing only CMake and a host compiler:
 python3 scripts/check_null_platform_core.py .
 ```
 
-Board hardware contract, against a target build:
+Everything, against a target build:
 
 ```text
-python3 scripts/check_board_contract.py <build-dir>
+python3 scripts/check_all_contracts.py . <build-dir>
 ```
 
 ## Authority

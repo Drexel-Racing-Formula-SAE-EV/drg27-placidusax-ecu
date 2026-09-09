@@ -15,6 +15,28 @@
         zephyr,flash = &flash0;
         zephyr,dtcm = &dtcm;
     };
+
+    /*
+     * E-003 typed safety-output contract.
+     *
+     * Devicetree is the single wiring contract for these five pins. The
+     * board-owned fail-low primitive uses direct registers for timing
+     * reasons, but asserts every pin here with BUILD_ASSERT, so re-pinning
+     * the board in Devicetree fails the build instead of silently driving
+     * the wrong pins.
+     *
+     * All five are active-high AT THE PIN; see the binding for the pump
+     * gate's downstream inversion.
+     */
+    ecu_safety_io: ecu-safety-io {
+        compatible = "drexel,ecu-safety-io";
+        firmware-ok-gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>;
+        cascadia-on-gpios = <&gpioa 5 GPIO_ACTIVE_HIGH>;
+        inverter-enable-gpios = <&gpiof 10 GPIO_ACTIVE_HIGH>;
+        buzzer-gpios = <&gpiof 13 GPIO_ACTIVE_HIGH>;
+        pump-gate-gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
 };
 
 

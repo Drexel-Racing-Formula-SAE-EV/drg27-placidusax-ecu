@@ -1,0 +1,43 @@
+title: Drexel DER26 ECU safety outputs
+
+description: |
+  The five DER26 ECU outputs that must be driven to a safe physical level by
+  the board-owned fail-low primitive.
+
+  All five are active-high AT THE PIN. The coolant pump gate's inversion is
+  downstream of the pin, in an external low-side switch: driving PB8 low
+  releases the pump's S input and invokes its no-valid-PWM full-speed
+  fallback. Encoding that inversion here would invert the safe level and is
+  forbidden; see include/ecu_platform/fail_low.h.
+
+compatible: "drexel,ecu-safety-io"
+
+include: base.yaml
+
+properties:
+  firmware-ok-gpios:
+    type: phandle-array
+    required: true
+    description: PA7 shutdown-circuit participant. Safe level LOW.
+
+  cascadia-on-gpios:
+    type: phandle-array
+    required: true
+    description: PA5 CM200 power sequencing output. Safe level LOW.
+
+  inverter-enable-gpios:
+    type: phandle-array
+    required: true
+    description: PF10 CM200 hardware enable (MTR_EN). Safe level LOW.
+
+  buzzer-gpios:
+    type: phandle-array
+    required: true
+    description: PF13 ready-to-drive buzzer. Safe level LOW.
+
+  pump-gate-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      PB8 coolant pump S gate, shared with TIM4_CH3. Safe level LOW, which
+      commands the pump to its full-speed fallback.
