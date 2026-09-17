@@ -47,10 +47,28 @@ void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
     ecu_force_safe_outputs_direct();
 
     /*
-     * The v2.10.7 oracle's stack-overflow and malloc-failure hooks force safe
-     * outputs, disable interrupts and spin forever rather than continuing.
-     * Preserve that: no thread is abandoned into an unknown state, and the
-     * watchdog is left to produce the reset once E-015 arms it.
+     * Spin with interrupts masked, as the oracle's stack-overflow and
+     * malloc-failure hooks do. Two things about this are NOT transcription and
+     * are recorded as decisions:
+     *
+     * 1. Blast radius. The oracle had two narrow hooks; Zephyr routes every
+     *    fatal here - CPU faults, k_panic, k_oops, stack canary failures and
+     *    __ASSERT. Zephyr could abort just the offending thread for a
+     *    thread-scoped K_ERR_KERNEL_OOPS; spinning the system gives that up
+     *    deliberately, because a vehicle controller running on after an
+     *    unexplained fault is worse than one that stops.
+     *
+     * 2. What ends the spin. IWDG is independent of the core and keeps
+     *    counting through irq_lock(), so once E-015 arms it this is
+     *    reset-in-N-ms, not hang-forever. Until E-015 lands, IWDG is NOT
+     *    armed and this really is dead-until-power-cycle.
+     *
+     * BLOCKING, tracked in the deviation register: whether a spinning ECU
+     * still holds the shutdown loop closed. If this board's contribution is a
+     * static GPIO level, dead firmware holds HV live; if it is a strobe or
+     * charge pump that decays when the CPU stops toggling, it is safe by
+     * construction. Needs Shutdown rev2. Driving Firmware_Ok low above is
+     * necessary but is only sufficient in the static-level case.
      */
     (void)irq_lock();
 
@@ -72,11 +90,14 @@ bool ecu_safe_outputs_confirmed(void)
 static int ecu_fatal_policy_init(void)
 {
     /*
-     * Idempotent re-assertion. If any PRE_KERNEL_1 device initialization
-     * between the board primitive and here reconfigured a shared GPIO port,
-     * this restores the safe level before the kernel starts threads.
+     * Detect-then-fix rather than blind re-assert. If a PRE_KERNEL_1 device
+     * initialization between the board primitive and here reconfigured a
+     * shared GPIO port, the mismatch is counted and reported by main() instead
+     * of being silently repaired. During bring-up that answers whether this
+     * guard is needed at all: never fires by end of season -> delete it;
+     * fires -> an init-ordering bug that would otherwise be invisible.
      */
-    ecu_force_safe_outputs_direct();
+    ecu_safe_outputs_verify_and_restore();
     safe_outputs_confirmed = true;
     return 0;
 }

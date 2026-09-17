@@ -26,12 +26,14 @@ REGISTER_RE = re.compile(
 )
 
 # Safety pins the primitive must drive, as (port, pin, signal).
+# Named by schematic net. Function for MISC_IO4 and GP_OUT6 is assigned
+# downstream and is deliberately not asserted here.
 REQUIRED_PINS = (
     ("GPIOA", 7, "Firmware_Ok"),
-    ("GPIOA", 5, "Cascadia_ON"),
+    ("GPIOA", 5, "MISC_IO4"),
     ("GPIOF", 10, "MTR_EN"),
     ("GPIOF", 13, "Buzzer"),
-    ("GPIOB", 8, "coolant pump gate"),
+    ("GPIOB", 8, "GP_OUT6"),
 )
 
 FAILURES = []
@@ -169,9 +171,22 @@ def main():
                  f"(defense in depth against partial peripheral init)")
 
     # -- 4. The TIM4 CH3 release must survive -------------------------------
+    # The oracle releases TIM4 CH3 before reclaiming PB8 so no timer waveform
+    # can outlive the call. Preserved even though what GP_OUT6 drives is
+    # unverified: dropping it would be an unjustified deviation.
     if "TIM_CCER_CC3E" not in body:
         fail("primitive must disable TIM4 CH3 output compare before "
-             "reclaiming PB8, or a partial-speed pump waveform can survive")
+             "reclaiming PB8, or a timer waveform can survive the call")
+
+    # -- 4b. Oracle write order: MODER before OTYPER, per port --------------
+    # Reverted from an earlier reordering. Equivalence with the oracle is the
+    # migration's bar; re-introducing the reorder needs a recorded deviation.
+    for port in sorted({p for p, _, _ in REQUIRED_PINS}):
+        moder = [m.start() for m in re.finditer(rf"\b{port}\s*->\s*MODER", body)]
+        otyper = [m.start() for m in re.finditer(rf"\b{port}\s*->\s*OTYPER", body)]
+        if moder and otyper and min(otyper) < min(moder):
+            fail(f"{port}: OTYPER is written before MODER; the oracle order is "
+                 f"MODER then OTYPER (see handoff 1.1)")
 
     # -- 5. Registered at PRE_KERNEL_1 --------------------------------------
     if not re.search(r"SYS_INIT\s*\([^)]*PRE_KERNEL_1", body):

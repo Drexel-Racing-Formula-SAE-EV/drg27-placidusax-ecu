@@ -190,12 +190,15 @@ def main():
         check(False, "missing ecu_safety_io node")
     else:
         check(safety.status == "okay", "ecu_safety_io must be enabled")
+        # Named by schematic net, not by function: MCU Breakout rev1 is shared
+        # between the AMS and the ECU and assigns no meaning to the generic
+        # nets. Pin numbers are U201 LQFP144 package pins.
         expected = {
-            "firmware-ok-gpios": ("gpioa", 7),
-            "cascadia-on-gpios": ("gpioa", 5),
-            "inverter-enable-gpios": ("gpiof", 10),
-            "buzzer-gpios": ("gpiof", 13),
-            "pump-gate-gpios": ("gpiob", 8),
+            "firmware-ok-gpios": ("gpioa", 7),    # U201 pin 43,  J801.12
+            "misc-io4-gpios": ("gpioa", 5),       # U201 pin 41,  J801.10
+            "mtr-en-gpios": ("gpiof", 10),        # U201 pin 22,  J801.6
+            "buzzer-gpios": ("gpiof", 13),        # U201 pin 53,  J801.14
+            "gp-out6-gpios": ("gpiob", 8),        # U201 pin 139, J801.29
         }
         for prop, (want_ctlr, want_pin) in expected.items():
             if prop not in safety.props:
@@ -207,11 +210,13 @@ def main():
             check(got_ctlr == want_ctlr and got_pin == want_pin,
                   f"{prop} must remain {want_ctlr} pin {want_pin}, "
                   f"got {got_ctlr} pin {got_pin}")
-            # flags 0 == GPIO_ACTIVE_HIGH. The pump gate's inversion is
-            # downstream of the pin and must NOT be encoded here: doing so
-            # would invert the safe level.
+            # A zero flags cell means the BOARD LAYER HOLDS NO POLARITY
+            # OPINION. Function and inversion for the generic nets are
+            # assigned downstream, so encoding GPIO_ACTIVE_* here would be
+            # asserting a hardware fact this board does not know.
             check(entry.data["flags"] == 0,
-                  f"{prop} must remain active-high at the pin")
+                  f"{prop}: board layer must hold no polarity opinion "
+                  f"(flags cell must be 0)")
 
     # -- Pump inversion note is load-bearing --------------------------------
     t4 = node(edt, "timers4")

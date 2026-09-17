@@ -6,6 +6,8 @@
 
 #include "ecu_fatal.h"
 
+#include <ecu_platform/fail_low.h>
+
 /*
  * Authority backstop.
  *
@@ -24,7 +26,7 @@ int main(void)
 {
     int ret;
 
-    printk("\nDRG27 Placidusax ECU - Zephyr migration stage E-003\n");
+    printk("\nDRG27 Placidusax ECU - Zephyr migration stage E-003a\n");
     printk("Oracle: %s\n", ECU_CORE_ORACLE_REVISION);
     printk("Board:  %s\n", CONFIG_BOARD_TARGET);
 
@@ -58,8 +60,13 @@ int main(void)
         k_panic();
     }
 
-    printk("Safe outputs: FORCED LOW (PA7 PA5 PF10 PF13 PB8)\n");
-    printk("Coolant pump: gate released -> full-speed fallback\n");
+    /* Named by schematic net: MCU Breakout rev1 assigns no function to the
+     * generic nets, so neither does this banner. */
+    printk("Safe outputs LOW: Firmware_Ok(PA7) MTR_EN(PF10) Buzzer(PF13) "
+           "MISC_IO4(PA5) GP_OUT6(PB8)\n");
+    printk("Safe-output drift: reasserts=%u last_mismatch=0x%02x\n",
+           (unsigned int)ecu_safe_outputs_reassert_count(),
+           (unsigned int)ecu_safe_outputs_last_mismatch());
 
     for (;;) {
         k_sleep(K_FOREVER);

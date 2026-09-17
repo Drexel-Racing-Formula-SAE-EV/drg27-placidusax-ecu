@@ -17,24 +17,24 @@
     };
 
     /*
-     * E-003 typed safety-output contract.
+     * E-003 board-owned output contract, revised against MCU Breakout rev1.
      *
-     * Devicetree is the single wiring contract for these five pins. The
-     * board-owned fail-low primitive uses direct registers for timing
-     * reasons, but asserts every pin here with BUILD_ASSERT, so re-pinning
-     * the board in Devicetree fails the build instead of silently driving
-     * the wrong pins.
+     * Named by SCHEMATIC NET, not by function. This board is shared between
+     * the AMS and the ECU; Firmware_Ok, MTR_EN and Buzzer are named on the
+     * schematic, MISC_IO4 and GP_OUT6 are generic nets whose function is
+     * assigned downstream on ECU Backplane rev2 and the mezzanines.
      *
-     * All five are active-high AT THE PIN; see the binding for the pump
-     * gate's downstream inversion.
+     * Every flags cell is 0, meaning "the board layer holds no polarity
+     * opinion" - NOT "active high". The GPIO_ACTIVE_* flag belongs in the ECU
+     * application layer. See docs/migration/ZEPHYR_MIGRATION_HANDOFF.md 1.2.
      */
     ecu_safety_io: ecu-safety-io {
         compatible = "drexel,ecu-safety-io";
-        firmware-ok-gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>;
-        cascadia-on-gpios = <&gpioa 5 GPIO_ACTIVE_HIGH>;
-        inverter-enable-gpios = <&gpiof 10 GPIO_ACTIVE_HIGH>;
-        buzzer-gpios = <&gpiof 13 GPIO_ACTIVE_HIGH>;
-        pump-gate-gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;
+        firmware-ok-gpios = <&gpioa 7 0>;
+        mtr-en-gpios = <&gpiof 10 0>;
+        buzzer-gpios = <&gpiof 13 0>;
+        misc-io4-gpios = <&gpioa 5 0>;
+        gp-out6-gpios = <&gpiob 8 0>;
         status = "okay";
     };
 };
@@ -147,6 +147,18 @@
  * re-derived through can_set_timing() and asserted equal, not transcribed.
  */
 &can1 {
+    /*
+     * MCU Breakout rev1 hardware facts:
+     *  - transceiver SN65HVD230QDR (U501) with RS -> 10k -> GND, i.e. SLOPE
+     *    CONTROL mode. That caps edge rate and therefore usable bitrate
+     *    independently of anything bxCAN is configured to do. Check the
+     *    datasheet slew-rate curve before trusting 500 kbps.
+     *  - R502 = 120R is FITTED, so this board terminates the bus. It must sit
+     *    at a physical bus end with exactly one other terminator.
+     *
+     * Bus is a single classic CAN segment at 500 kbps shared with the AMS and
+     * the CM200DX. Do not propose a bitrate change as part of this migration.
+     */
     pinctrl-0 = <&can1_rx_pd0 &can1_tx_pd1>;
     pinctrl-names = "default";
     interrupts = <19 5>, <20 5>, <21 5>, <22 5>;
@@ -156,6 +168,12 @@
 
 /*
  * Coolant flow capture, PA0. Enabled at E-010.
+ *
+ * CONFLICT, unresolved: MCU Breakout rev1 routes PA0 as net ADC3(6) to
+ * J601.25 - the ANALOG input group - while the v2.10.7 oracle drives it as
+ * TIM5 CH1/CH2 input capture for the flow sensor. PA0 is electrically capable
+ * of both, so this is a question of what the mezzanine presents, not of pin
+ * capability. Resolve before E-010; see docs/hardware/PINMAP_RECONCILIATION.md.
  *
  * v2.10.7 uses TIM5 CH1/CH2 in the two-channel capture topology that the AMS
  * Z-013 IMD adapter already ports: CH1 direct capture for the period, CH2
@@ -261,6 +279,12 @@
  * Non-safety: the in-tree Zephyr sensor driver replaces the custom one.
  */
 &i2c2 {
+    /*
+     * MPU6050 (U401) is at 0x69, not 0x68: AD0 is tied to +3.3V on the same
+     * net as VLOGIC and VDD. INT (pin 12) is not connected, so polled reads
+     * only - no interrupt-driven sampling. The v2.10.7 oracle already uses
+     * MPU6050_ADDR1 (0x69), so it agrees with the schematic here.
+     */
     pinctrl-0 = <&i2c2_sda_pf0 &i2c2_scl_pf1>;
     pinctrl-names = "default";
     clock-frequency = <I2C_BITRATE_STANDARD>;
